@@ -1,37 +1,40 @@
+package trustsystem;
+
+
 import java.util.*;
 
-public class QuorumSystem extends ProcessSystem {
+public class QuorumSystem extends ProcSystem {
 
-    QuorumSystem(Collection<ProcessSet> p_sets) {
+    QuorumSystem( Collection<ProcSet> p_sets) {
         super(p_sets);
     }
 
     public KernelSystem get_kernel_system(){
-        ArrayList<ProcessSet> kernel_candidates = new ArrayList<>();
-        HashSet<Process> intersect;
-        HashSet<Process> temp;
-        ArrayList<ProcessSet> new_candidates;
-        for(ProcessSet q : p_sets){
-            //if the kernel_candidates are empty initialize them with a process in q each
+        ArrayList<ProcSet> kernel_candidates = new ArrayList<>();
+        HashSet<Proc> intersect;
+        HashSet<Proc> temp;
+        ArrayList<ProcSet> new_candidates;
+        for(ProcSet q : p_sets){
+            //if the kernel_candidates are empty initialize them with a Proc in q each
             if( kernel_candidates.isEmpty()){
-                for(Process p : q.p_set){
-                    kernel_candidates.add(new ProcessSet(Collections.singleton(p)));
+                for(Proc p : q.p_set){
+                    kernel_candidates.add(new ProcSet(Collections.singleton(p)));
                 }
             }
             //for every candidate check if it intersects q. If not the candidates are extended by the candidate union with
-            //each of the Processes in q
-            Iterator<ProcessSet> iterator = kernel_candidates.iterator();
+            //each of the Proces in q
+            Iterator<ProcSet> iterator = kernel_candidates.iterator();
             new_candidates = new ArrayList<>();
             while (iterator.hasNext()) {
-                ProcessSet c = iterator.next();
+                ProcSet c = iterator.next();
                 intersect = new HashSet<>(c.get_p_set());
                 intersect.retainAll(q.get_p_set());
                 if (intersect.isEmpty()) {
                     iterator.remove();
-                    for(Process p : q.get_p_set()){
+                    for(Proc p : q.get_p_set()){
                         temp = new HashSet<>(c.get_p_set());
                         temp.add(p);
-                        new_candidates.add(new ProcessSet(temp));
+                        new_candidates.add(new ProcSet(temp));
 
                     }
                 }
@@ -42,14 +45,14 @@ public class QuorumSystem extends ProcessSystem {
         return new KernelSystem(kernel_candidates);
     }
 
-    private void removeSubsets(ArrayList<ProcessSet> kernel_candidates) {
-        ArrayList<ProcessSet> toRemove = new ArrayList<>();
+    private void removeSubsets(ArrayList<ProcSet> kernel_candidates) {
+        ArrayList<ProcSet> toRemove = new ArrayList<>();
 
         for (int i = 0; i < kernel_candidates.size(); i++) {
-            ProcessSet set1 = kernel_candidates.get(i);
+            ProcSet set1 = kernel_candidates.get(i);
 
             for (int j = i+1; j < kernel_candidates.size(); j++) {
-                ProcessSet set2 = kernel_candidates.get(j);
+                ProcSet set2 = kernel_candidates.get(j);
 
                 if (set2.get_p_set().containsAll(set1.get_p_set())) {
                     toRemove.add(set1);
