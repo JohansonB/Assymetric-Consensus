@@ -2,8 +2,9 @@ package trustsystem;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 
-public class ProcSystem {
+public class ProcSystem implements Iterable<ProcSet>  {
     ArrayList<ProcSet> p_sets;
 
     ProcSystem( Collection<ProcSet> p_sets){
@@ -46,5 +47,11 @@ public class ProcSystem {
         }
         return new ProcSystem(procSets);
     }
+
+    @Override
+    public Iterator<ProcSet> iterator() {
+        return p_sets.iterator();
+    }
+
 
 }

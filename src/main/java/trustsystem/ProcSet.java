@@ -3,8 +3,9 @@ package trustsystem;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 
-public class ProcSet {
+public class ProcSet implements Iterable<Proc> {
     HashSet<Proc> p_set;
     public ProcSet(Collection<Proc> p_set){
         this.p_set = new HashSet<>(p_set);
@@ -46,5 +47,14 @@ public class ProcSet {
             procs.add(Proc.parse(s));
         }
         return new ProcSet(procs);
+    }
+
+    public boolean equals(Object o){
+        return p_set.equals(o);
+    }
+
+    @Override
+    public Iterator<Proc> iterator() {
+        return p_set.iterator();
     }
 }

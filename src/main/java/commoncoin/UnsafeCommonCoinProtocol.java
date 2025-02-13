@@ -1,12 +1,7 @@
 package commoncoin;
 
-import abvbroadcast.MultiplexAbvBroadcastRequest;
-import communication.CommunicationReply;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
-import trustsystem.Proc;
-import trustsystem.TrustSystem;
-import utils.CollectionSerializer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,7 +28,7 @@ public class UnsafeCommonCoinProtocol extends GenericProtocol {
 
     private void uponReleaseCoin(ReleaseCoinRequest request, short sourceProto){
         int round = request.getRound();
-        while (history.size()<round) {
+        while (history.size()<=round) {
             history.add(random.nextBoolean());
         }
         sendReply(new OutputCoinReply(history.get(round),round),sourceProto);

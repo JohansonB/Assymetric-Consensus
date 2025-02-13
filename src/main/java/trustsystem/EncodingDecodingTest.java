@@ -7,10 +7,10 @@ class EncodingDecodingTest {
 
     public static void main(String[] args) {
         // Step 1: Create some Proc objects
-        Proc p1 = new Proc(1);
-        Proc p2 = new Proc(2);
-        Proc p3 = new Proc(3);
-        Proc p4 = new Proc(4);
+        Proc p1 = new Proc(1, "127.0.0.1", 5000);
+        Proc p2 = new Proc(2, "127.0.0.1", 5001);
+        Proc p3 = new Proc(3, "127.0.0.1", 5002);
+        Proc p4 = new Proc(4, "127.0.0.1", 5003);
 
         // Step 2: Create ProcSets
         ProcSet set1 = new ProcSet(new HashSet<>(Arrays.asList(p1, p2)));

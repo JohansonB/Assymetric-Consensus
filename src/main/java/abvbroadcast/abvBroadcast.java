@@ -6,7 +6,7 @@ import communication.SendMessageRequest;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import trustsystem.*;
-import utils.CollectionSerializer;
+import utils.SerializerTools;
 
 import java.io.IOException;
 import java.util.*;
@@ -24,6 +24,7 @@ public class abvBroadcast extends GenericProtocol{
     private MarkedProcSystem one_marked_kernel;
     private MarkedProcSystem zero_marked_quorum;
     private MarkedProcSystem one_marked_quorum;
+    private HashMap<Boolean,Boolean> delivered = new HashMap<>();
 
     private short output_proto;
 
@@ -34,7 +35,7 @@ public class abvBroadcast extends GenericProtocol{
     @Override
     public void init(Properties properties) throws IOException, HandlerRegistrationException {
         self = Proc.parse(properties.getProperty("self"));
-        ArrayList<String> peer_codes = CollectionSerializer.flatten_collection("peers");
+        ArrayList<String> peer_codes = SerializerTools.decode_collection(properties.getProperty("peers"));
         for(String code : peer_codes){
             Proc p = Proc.parse(code);
             peers.add(p);
@@ -42,6 +43,8 @@ public class abvBroadcast extends GenericProtocol{
         }
         sentValue.put(true,false);
         sentValue.put(false,false);
+        delivered.put(false,false);
+        delivered.put(true,false);
         output_proto = new Short(properties.getProperty("output_proto"));
         trustsystem = TrustSystem.parse(properties.getProperty("trustsystem"));
         kernelSystem = trustsystem.get_quorums().get_kernel_system();
@@ -67,14 +70,15 @@ public class abvBroadcast extends GenericProtocol{
                 if(!sentValue.get(cur_bool)&&cur_marked_kernel.mark_proc(cur_p)){
                     uponBroadcastRequest(new abvBroadcastRequest(reply.getPayload(),cur_bool),PROTO_ID);
                 }
-                if(cur_marked_quorum.mark_proc(cur_p)){
+                if(!delivered.get(cur_bool)&&cur_marked_quorum.mark_proc(cur_p)){
+                    delivered.put(cur_bool,true);
                     sendReply(new abvDeliver(cur_bool,reply.getPayload()),output_proto);
                 }
 
 
             }
         }
-        sendReply(new MessageACK(self),CommunicationProtocol.PROTO_ID);
+        sendReply(new MessageACK(reply),CommunicationProtocol.PROTO_ID);
     }
 
     private void uponBroadcastRequest(abvBroadcastRequest request, short sourceProtocol) {

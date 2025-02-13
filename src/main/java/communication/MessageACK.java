@@ -5,13 +5,13 @@ import trustsystem.Proc;
 
 public class MessageACK extends ProtoReply {
     public static final short ACK_ID = 2;
-    Proc origin;
-    public MessageACK(Proc origin) {
+    CommunicationReply reply;
+    public MessageACK(CommunicationReply reply) {
         super(ACK_ID);
-        this.origin = origin;
+        this.reply = reply;
     }
 
-    public Proc getOrigin() {
-        return origin;
+    public CommunicationReply getReply() {
+        return reply;
     }
 }

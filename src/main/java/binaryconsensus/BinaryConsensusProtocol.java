@@ -14,7 +14,7 @@ import trustsystem.KernelSystem;
 import trustsystem.MarkedProcSystem;
 import trustsystem.Proc;
 import trustsystem.TrustSystem;
-import utils.CollectionSerializer;
+import utils.SerializerTools;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,8 +23,8 @@ import java.util.HashSet;
 import java.util.Properties;
 
 public class BinaryConsensusProtocol extends GenericProtocol {
-    private static final String PROTO_NAME = "binaryconsensus";
-    private static final short PROTO_ID = 104;
+    public static final String PROTO_NAME = "binaryconsensus";
+    public static final short PROTO_ID = 104;
     Proc self;
     int round = 0;
     HashSet<Boolean> values = new HashSet<>();
@@ -41,7 +41,7 @@ public class BinaryConsensusProtocol extends GenericProtocol {
     private MarkedProcSystem zero_marked_quorum_decided;
     private MarkedProcSystem one_marked_quorum_decided;
 
-    HashSet<Proc> peers;
+    HashSet<Proc> peers = new HashSet<>();
     TrustSystem trustsystem;
     KernelSystem kernelSystem;
     short output_proto;
@@ -54,7 +54,7 @@ public class BinaryConsensusProtocol extends GenericProtocol {
     public void init(Properties properties) throws IOException, HandlerRegistrationException {
         self = Proc.parse(properties.getProperty("self"));
         output_proto = new Short(properties.getProperty("output_proto"));
-        ArrayList<String> peer_codes = CollectionSerializer.flatten_collection("peers");
+        ArrayList<String> peer_codes = SerializerTools.decode_collection(properties.getProperty("peers"));
         for(String code : peer_codes){
             Proc p = Proc.parse(code);
             aux.put(p,new HashSet<>());
@@ -74,7 +74,7 @@ public class BinaryConsensusProtocol extends GenericProtocol {
 
         registerRequestHandler(ACProposeRequest.REQUEST_ID,this::uponPropose);
         registerReplyHandler(OutputCoinReply.REPLY_ID,this::uponCoinOutput);
-        registerReplyHandler(abvDeliver.REPSONSE_ID,this::uponAbvDeliver);
+        registerReplyHandler(MultiplexAbvDeliver.REPSONSE_ID,this::uponAbvDeliver);
         registerReplyHandler(CommunicationReply.REPLY_ID,this::messageHandler);
 
     }
@@ -127,13 +127,7 @@ public class BinaryConsensusProtocol extends GenericProtocol {
                 MarkedProcSystem cur_marked_quorum = b ? one_marked_quorum_decided : zero_marked_quorum_decided;
                 MarkedProcSystem cur_marked_kernel = b ? one_marked_kernel : zero_marked_kernel;
                 if(!sentdecide&&cur_marked_kernel.mark_proc(p)){
-                    HashMap<String,String> decide_msg = new HashMap<>();
-                    msg.put("type","decide");
-                    msg.put("b",Boolean.toString(b));
-                    for(Proc q : peers){
-                        sendRequest(new SendMessageRequest(decide_msg, new HashMap<>(), q, PROTO_ID), CommunicationProtocol.PROTO_ID);
-                    }
-                    sentdecide = true;
+                    send_decide(b);
                 }
                 if(cur_marked_quorum.mark_proc(p)){
                     sendReply(new ACDecide(b),output_proto);
@@ -141,7 +135,16 @@ public class BinaryConsensusProtocol extends GenericProtocol {
                 }
             }
         }
-        sendReply(new MessageACK(self),CommunicationProtocol.PROTO_ID);
+        sendReply(new MessageACK(reply),CommunicationProtocol.PROTO_ID);
+    }
+    private void send_decide(boolean b){
+        HashMap<String,String> decide_msg = new HashMap<>();
+        decide_msg.put("type","decide");
+        decide_msg.put("b",Boolean.toString(b));
+        for(Proc q : peers){
+            sendRequest(new SendMessageRequest(decide_msg, new HashMap<>(), q, PROTO_ID), CommunicationProtocol.PROTO_ID);
+        }
+        sentdecide = true;
     }
     private void uponCoinOutput(OutputCoinReply reply, short sourceProtocol){
         if(halted){
@@ -156,13 +159,7 @@ public class BinaryConsensusProtocol extends GenericProtocol {
         if(zero_marked_quorum_aux.getPSetFound()!=one_marked_quorum_aux.getPSetFound()){
             boolean b = one_marked_quorum_aux.getPSetFound() ? true : false;
             if(b==s && !sentdecide){
-                HashMap<String,String> msg = new HashMap<>();
-                msg.put("type","decide");
-                msg.put("b",Boolean.toString(b));
-                for(Proc p : peers) {
-                    sendRequest(new SendMessageRequest(msg, new HashMap<>(), p, PROTO_ID), CommunicationProtocol.PROTO_ID);
-                }
-                sentdecide = true;
+                send_decide(b);
             }
             sendRequest(new MultiplexAbvBroadcastRequest(new HashMap<>(),b,round), MultiplexAbvBroadcast.PROTO_ID);
         }

@@ -10,7 +10,7 @@ import trustsystem.KernelSystem;
 import trustsystem.MarkedProcSystem;
 import trustsystem.Proc;
 import trustsystem.TrustSystem;
-import utils.CollectionSerializer;
+import utils.SerializerTools;
 
 import java.io.IOException;
 import java.util.*;
@@ -21,16 +21,19 @@ public class MultiplexAbvBroadcast extends GenericProtocol {
 
     private HashMap<Integer,Map<Proc, Set<Boolean>>> values = new HashMap<>();
     private HashMap<Integer,HashMap<Boolean,Boolean>> sentValue = new HashMap<>();
+    private HashMap<Integer,HashMap<Boolean,Boolean>> delivereds = new HashMap<>();
     private Proc self;
     private Set<Proc> peers = new HashSet<>();
     private TrustSystem trustsystem;
     private KernelSystem kernelSystem;
-    private HashMap<Integer,MarkedProcSystem> zero_marked_kernel;
-    private HashMap<Integer,MarkedProcSystem> one_marked_kernel;
-    private HashMap<Integer,MarkedProcSystem> zero_marked_quorum;
-    private HashMap<Integer,MarkedProcSystem> one_marked_quorum;
+    private HashMap<Integer,MarkedProcSystem> zero_marked_kernel = new HashMap<>();
+    private HashMap<Integer,MarkedProcSystem> one_marked_kernel = new HashMap<>();
+    private HashMap<Integer,MarkedProcSystem> zero_marked_quorum = new HashMap<>();
+    private HashMap<Integer,MarkedProcSystem> one_marked_quorum = new HashMap<>();
 
     private short output_proto;
+    private int enter_count = 0;
+
 
     public MultiplexAbvBroadcast() {
         super(PROTO_NAME, PROTO_ID);
@@ -39,7 +42,7 @@ public class MultiplexAbvBroadcast extends GenericProtocol {
     @Override
     public void init(Properties properties) throws IOException, HandlerRegistrationException {
         self = Proc.parse(properties.getProperty("self"));
-        ArrayList<String> peer_codes = CollectionSerializer.flatten_collection("peers");
+        ArrayList<String> peer_codes = SerializerTools.decode_collection(properties.getProperty("peers"));
         for(String code : peer_codes){
             Proc p = Proc.parse(code);
             peers.add(p);
@@ -68,14 +71,15 @@ public class MultiplexAbvBroadcast extends GenericProtocol {
                 if(!sentValue.get(round).get(cur_bool)&&cur_marked_kernel.mark_proc(cur_p)){
                     uponBroadcastRequest(new MultiplexAbvBroadcastRequest(reply.getPayload(),cur_bool,round),PROTO_ID);
                 }
-                if(cur_marked_quorum.mark_proc(cur_p)){
+                if(!delivereds.get(round).get(cur_bool)&&cur_marked_quorum.mark_proc(cur_p)){
+                    delivereds.get(round).put(cur_bool,true);
                     sendReply(new MultiplexAbvDeliver(cur_bool,round,reply.getPayload()),output_proto);
                 }
 
 
             }
         }
-        sendReply(new MessageACK(self),CommunicationProtocol.PROTO_ID);
+        sendReply(new MessageACK(reply),CommunicationProtocol.PROTO_ID);
     }
 
     private void setup_round(int round) {
@@ -92,6 +96,11 @@ public class MultiplexAbvBroadcast extends GenericProtocol {
         HashMap<Boolean,Boolean> cur_sent = sentValue.get(round);
         cur_sent.put(true,false);
         cur_sent.put(false,false);
+
+        HashMap<Boolean,Boolean> cur_del = new HashMap<>();
+        cur_del.put(true,false);
+        cur_del.put(false,false);
+        delivereds.put(round,cur_del);
 
         zero_marked_kernel.put(round, kernelSystem.get_marked());
         one_marked_kernel.put(round,kernelSystem.get_marked());

@@ -7,16 +7,16 @@ import java.util.HashMap;
 public class MarkedProcSystem extends ProcSystem{
     boolean p_set_found = false;
     HashMap<Proc,Boolean> seen = new HashMap<>();
-    HashMap<Proc, ArrayList<Integer>> p_set_membership;
-    ArrayList<Integer> counts;
-    ArrayList<Integer> sizes;
+    HashMap<Proc, ArrayList<Integer>> p_set_membership = new HashMap<>();
+    HashMap<Integer,Integer> counts = new HashMap<>();
+    HashMap<Integer,Integer> sizes = new HashMap<>();
     MarkedProcSystem(Collection<ProcSet> p_sets) {
         super(p_sets);
         int count = 0;
         for(ProcSet p_set : this.p_sets){
-            counts.add(0);
-            sizes.add(p_set.size());
-            for(Proc p : p_set.get_p_set()){
+            counts.put(count,0);
+            sizes.put(count,p_set.size());
+            for(Proc p : p_set){
                 if(!seen.containsKey(p)){
                     seen.put(p,false);
                 }
@@ -31,7 +31,7 @@ public class MarkedProcSystem extends ProcSystem{
     void reset(){
         p_set_found = false;
         for(int i = 0; i<counts.size();i++){
-            counts.add(i,0);
+            counts.put(i,0);
         }
     }
     public boolean getPSetFound(){
@@ -46,7 +46,7 @@ public class MarkedProcSystem extends ProcSystem{
         seen.put(p,true);
         for(int index : p_set_membership.get(p)){
             temp = counts.get(index)+1;
-            counts.add(index,temp);
+            counts.put(index,temp);
             if(temp>=sizes.get(index)){
                 p_set_found = true;
             }

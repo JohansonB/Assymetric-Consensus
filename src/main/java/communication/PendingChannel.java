@@ -1,4 +1,7 @@
 package communication;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
@@ -6,8 +9,6 @@ import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.channel.tcp.events.*;
 import pt.unl.fct.di.novasys.network.data.Host;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import trustsystem.Proc;
 import utils.SerializerTools;
 
@@ -15,22 +16,18 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
 
-public class CommunicationProtocol  extends GenericProtocol {
 
-    private static final Logger logger = LogManager.getLogger(CommunicationProtocol.class);
+public class PendingChannel extends GenericProtocol {
+    private static final Logger logger = LogManager.getLogger(PendingChannel.class);
     private static final int DEFAULT_QUEUE_MILLIS = 100;
+    private static final String PROTO_NAME = "pendingchannel";
+    public static final short PROTO_ID = 105;
 
-
-    private static final String PROTO_NAME = "communication";
-    public static final short PROTO_ID = 103;
+    private Short dest_proto = null;
     Proc self;
     Host self_h;
     int queue_millis;
     boolean queue_timer_running;
-
-
-    HashMap<Proc,Boolean> pending_acks = new HashMap<>();
-    HashMap<Proc,Queue<CommunicationReply>> reply_queues = new HashMap<>();
 
     ArrayList<Proc> peers = new ArrayList<>();
     HashMap<Proc,Host> peer_h = new HashMap<>();
@@ -39,13 +36,13 @@ public class CommunicationProtocol  extends GenericProtocol {
     HashSet<Host> connected = new HashSet<>();
     HashMap<Host, Queue<CommunicationProtocolMessage>> pending_msg_queue = new HashMap<>();
 
-
-
     protected int channelId;
 
-    public CommunicationProtocol(){
+    public PendingChannel(){
         super(PROTO_NAME,PROTO_ID);
     }
+
+
     @Override
     public void init(Properties properties) throws HandlerRegistrationException, IOException {
         Configurator.setLevel("CommunicationProtocol", org.apache.logging.log4j.Level.DEBUG);
@@ -55,6 +52,9 @@ public class CommunicationProtocol  extends GenericProtocol {
         }
         else{
             queue_millis = DEFAULT_QUEUE_MILLIS;
+        }
+        if(properties.containsKey("dest_proto")){
+            dest_proto = new Short(properties.getProperty("dest_proto"));
         }
 
 
@@ -80,7 +80,6 @@ public class CommunicationProtocol  extends GenericProtocol {
         registerMessageHandler(this.channelId,CommunicationProtocolMessage.MSG_ID,this::uponCommunicationProtocolMessage,this::uponMessageFail);
 
         registerRequestHandler(SendMessageRequest.REQUEST_ID,this::uponMessageRequest);
-        registerReplyHandler(MessageACK.ACK_ID,this::uponMessageACK);
 
         registerMessageSerializer(channelId, CommunicationProtocolMessage.MSG_ID, new CommunicationProtocolMessageSerializer());
 
@@ -91,8 +90,6 @@ public class CommunicationProtocol  extends GenericProtocol {
 
         for(Proc p : peers){
             h = new Host(InetAddress.getByName(p.getAddress()),p.getPort());
-            reply_queues.put(p,new LinkedList<>());
-            pending_acks.put(p,false);
             peer_h.put(p,h);
             h_p_map.put(h,p);
             pending_msg_queue.put(peer_h.get(p),new LinkedList<>());
@@ -102,18 +99,6 @@ public class CommunicationProtocol  extends GenericProtocol {
             }
         }
 
-    }
-
-    private void uponMessageACK(MessageACK ack, short sourceProtocol) {
-        Proc origin = ack.getReply().getOrigin();
-        pending_acks.put(origin,false);
-        Queue<CommunicationReply> cur_q = reply_queues.get(origin);
-
-        if(!cur_q.isEmpty()){
-            CommunicationReply reply = cur_q.remove();
-            pending_acks.put(origin,true);
-            sendReply(reply,reply.getDestination_proto());
-        }
     }
 
     private void uponNextPendingTimer(PendingTimer timer, long timerId) {
@@ -138,18 +123,10 @@ public class CommunicationProtocol  extends GenericProtocol {
         CommunicationProtocolMessage msg = new CommunicationProtocolMessage(self,dest,messageRequest.getMessage(),messageRequest.getPayload(),messageRequest.getDestination_proto());
 
         if(dest.equals(self)){
-            Queue<CommunicationReply> cur_reply_q = reply_queues.get(self);
             CommunicationReply reply = new CommunicationReply(msg.getMessage(),msg.getPayload(),self,msg.getDestination_proto());
-            cur_reply_q.add(reply);
-            if(!pending_acks.get(self)){
-                reply = cur_reply_q.remove();
-                pending_acks.put(self,true);
-                sendReply(reply,reply.getDestination_proto());
-            }
+            sendReply(reply,reply.getDestination_proto());
             return;
         }
-
-
         if(pending.contains(dest_h)){
             cur_q.add(msg);
             return;
@@ -164,15 +141,11 @@ public class CommunicationProtocol  extends GenericProtocol {
 
     private void uponCommunicationProtocolMessage(CommunicationProtocolMessage msg, Host from, short source_proto, int channelId){
         CommunicationReply reply = new CommunicationReply(msg.getMessage(),msg.getPayload(),h_p_map.get(from),msg.getDestination_proto());
-        Proc origin = h_p_map.get(from);
-        Queue<CommunicationReply> cur_q = reply_queues.get(origin);
-        cur_q.add(reply);
-        if(!pending_acks.get(origin)){
-            reply = cur_q.remove();
-            pending_acks.put(origin,true);
-            sendReply(reply,reply.getDestination_proto());
-        }
+        //check if the message is rerouted to another communication layer
+        short dest_prot = dest_proto!=null ? dest_proto : reply.getDestination_proto();
+        sendReply(reply,dest_prot);
     }
+
 
     private void uponMessageFail(ProtoMessage msg, Host host, short destProto, Throwable throwable, int channelId){
         logger.error("Message {} to {} failed, reason: {}", msg, host, throwable);
@@ -216,7 +189,4 @@ public class CommunicationProtocol  extends GenericProtocol {
     private void uponInConnectionDown(InConnectionDown event, int channelId) {
         logger.trace("Connection from {} is down, cause: {}", event.getNode(), event.getCause());
     }
-
-
-
 }
