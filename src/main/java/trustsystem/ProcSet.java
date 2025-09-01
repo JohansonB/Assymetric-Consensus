@@ -53,8 +53,18 @@ public class ProcSet implements Iterable<Proc> {
         return p_set.equals(o);
     }
 
+    public int hashCode(){
+        return p_set.hashCode();
+    }
+
     @Override
     public Iterator<Proc> iterator() {
         return p_set.iterator();
+    }
+
+    public ProcSet union(ProcSet quorum) {
+        HashSet<Proc> temp = new HashSet<>(this.p_set);
+        temp.addAll(quorum.get_p_set());
+        return new ProcSet(temp);
     }
 }

@@ -1,8 +1,7 @@
 package debugging;
 
-import abvbroadcast.*;
+import randomizedconsensus.abvbroadcast.*;
 import communication.CommunicationProtocol;
-import communication.CommunicationReply;
 import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
@@ -18,7 +17,6 @@ import utils.SerializerTools;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Properties;
 
 public class abvBroadcastTester extends GenericProtocol {

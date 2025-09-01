@@ -8,6 +8,9 @@ public class QuorumSystem extends ProcSystem {
     public QuorumSystem( Collection<ProcSet> p_sets) {
         super(p_sets);
     }
+    public QuorumSystem( ProcSystem p_s) {
+        super(p_s.p_sets);
+    }
 
     public static QuorumSystem majorityQuorums(Collection<Proc> procs) {
         int quorumSize = (int) Math.ceil((procs.size() + 1) / 2.0);
@@ -79,21 +82,5 @@ public class QuorumSystem extends ProcSystem {
         return new KernelSystem(kernel_candidates);
     }
 
-    private void removeSupersets(ArrayList<ProcSet> kernel_candidates) {
-        ArrayList<ProcSet> toRemove = new ArrayList<>();
 
-        for (int i = 0; i < kernel_candidates.size(); i++) {
-            ProcSet set1 = kernel_candidates.get(i);
-
-            for (int j = i+1; j < kernel_candidates.size(); j++) {
-                ProcSet set2 = kernel_candidates.get(j);
-
-                if (set1.get_p_set().containsAll(set2.get_p_set())) {
-                    toRemove.add(set1);
-                    break;
-                }
-            }
-        }
-        kernel_candidates.removeAll(toRemove);
-    }
 }

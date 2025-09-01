@@ -1,7 +1,7 @@
 package trustsystem;
 
 
-import java.util.ArrayList;
+import java.util.*;
 
 public class TrustSystem {
     FaultSystem fault_assumptions;
@@ -32,10 +32,45 @@ public class TrustSystem {
         return new TrustSystem(f_s,q_s);
     }
 
+    public TrustSystem permute(HashMap<Proc,Proc> permutation){
+        ArrayList<ProcSet> temp = new ArrayList<>();
+        ProcSet temptemp;
+        FaultSystem f_s;
+        QuorumSystem q_s;
+        for(ProcSet p_set : fault_assumptions){
+            temptemp = new ProcSet(new HashSet<>());
+            for(Proc p : p_set){
+                temptemp.p_set.add(permutation.get(p));
+            }
+            temp.add(temptemp);
+        }
+        f_s = new FaultSystem(temp);
+
+        temp = new ArrayList<>();
+
+        for(ProcSet p_set : quorums){
+            temptemp = new ProcSet(new HashSet<>());
+            for(Proc p : p_set){
+                temptemp.p_set.add(permutation.get(p));
+            }
+            temp.add(temptemp);
+        }
+        q_s = new QuorumSystem(temp);
+        return new TrustSystem(f_s,q_s);
+    }
+
     public QuorumSystem get_quorums() {
         return quorums;
     }
     public FaultSystem get_fault_assumptions() {
         return fault_assumptions;
+    }
+
+    public static TrustSystem threshold_system(Collection<Proc> procs,int threshold){
+        return new TrustSystem(new FaultSystem(new HashSet<>()),QuorumSystem.thresholdQuorums(procs,threshold));
+    }
+    public static TrustSystem threshold_system(Collection<Proc> procs) {
+        return new TrustSystem(new FaultSystem(new HashSet<>()),QuorumSystem.majorityQuorums(procs));
+
     }
 }

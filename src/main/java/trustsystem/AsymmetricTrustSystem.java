@@ -1,9 +1,7 @@
 package trustsystem;
 
-import org.jgrapht.Graph;
-import org.jgrapht.alg.clique.BronKerboschCliqueFinder;
-import org.jgrapht.graph.DefaultEdge;
-import org.jgrapht.graph.SimpleGraph;
+
+import utils.SerializerTools;
 
 import java.util.*;
 
@@ -11,8 +9,16 @@ public class AsymmetricTrustSystem {
     HashMap<Proc,TrustSystem> asym_trust_system;
     ArrayList<Proc> members;
 
+    AsymmetricTrustSystem(HashMap<Proc,TrustSystem> asym_trust_system){
+        this.asym_trust_system = asym_trust_system;
+        this.members = new ArrayList<>(asym_trust_system.keySet());
+    }
     private void set_members(){
         members = new ArrayList<>(asym_trust_system.keySet());
+    }
+
+    public TrustSystem getTrustSystem(Proc p){
+        return asym_trust_system.get(p);
     }
 
     public boolean is_valid(){
@@ -92,11 +98,47 @@ public class AsymmetricTrustSystem {
         }
         return true;
     }
-    private static class MarkedProcSet{
+
+    public Set<Proc> getMembers() {
+        return asym_trust_system.keySet();
+    }
+
+    public interface Selector{
+        GuildCandidate next();
+        boolean isEmpty();
+        void add(GuildCandidate c);
+    }
+    public class GreedySelector implements Selector{
+        HashMap<Integer,LinkedList<GuildCandidate>> candidates = new HashMap<>();
+        TreeSet<Integer> sorted_keys = new TreeSet<>();
+        @Override
+        public GuildCandidate next() {
+            int key = sorted_keys.first();
+            LinkedList<GuildCandidate> temp = candidates.get(key);
+            GuildCandidate ret = temp.pop();
+            if(temp.isEmpty()){
+                sorted_keys.remove(key);
+            }
+            return ret;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return sorted_keys.isEmpty();
+        }
+
+        @Override
+        public void add(GuildCandidate c) {
+            sorted_keys.add(c.unchecked.size());
+            candidates.computeIfAbsent(c.unchecked.size(),k->new LinkedList<>()).add(c);
+
+        }
+    }
+    private static class GuildCandidate{
         HashSet<Proc> unchecked = new HashSet<>();
         HashSet<Proc> checked = new HashSet<>();
         ProcSet p_set;
-        MarkedProcSet(ProcSet innit){
+        GuildCandidate(ProcSet innit){
             p_set = new ProcSet(innit.p_set);
             unchecked.addAll(innit.get_p_set());
         }
@@ -127,78 +169,75 @@ public class AsymmetricTrustSystem {
             return p_set;
         }
 
-        public MarkedProcSet clone() {
-            MarkedProcSet cloned = new MarkedProcSet(p_set);
+        public GuildCandidate clone() {
+            GuildCandidate cloned = new GuildCandidate(p_set);
             cloned.unchecked = new HashSet<>(unchecked);
             cloned.checked = new HashSet<>(checked);
             return cloned;
         }
 
-    }
-    private static class GuildCandidate{
-        MarkedProcSet m_p_set;
-        HashSet<Proc> fault_set;
-        Collection<Proc> members;
-        GuildCandidate(ProcSet innit,Collection<Proc> members){
-            this.members = members;
-            m_p_set = new MarkedProcSet(innit);
-            HashSet<Proc> members_s = new HashSet<>(members);
-            members.removeAll(innit.get_p_set());
-            fault_set = members_s;
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            GuildCandidate other = (GuildCandidate) obj;
+            return Objects.equals(p_set.get_p_set(), other.p_set.get_p_set()) &&
+                    Objects.equals(checked, other.checked);
         }
 
-        void add_p(Proc p){
-            m_p_set.add_p(p);
+        @Override
+        public int hashCode() {
+            return Objects.hash(p_set.get_p_set(), checked);
         }
-        void add_p_set(ProcSet p_set){
-            m_p_set.add_p_set(p_set);
-            HashSet<Proc> f = new HashSet<>(members);
-            f.removeAll(p_set.get_p_set());
-            f.retainAll(fault_set);
-            fault_set = f;
-        }
-        void mark_p(Proc p){
-            m_p_set.mark_p(p);
-        }
-        boolean has_unmarked(){
-            return m_p_set.has_unmarked();
-        }
-
-        ProcSet get_p_set(){
-            return m_p_set.get_p_set();
-        }
-        Proc get_unmarked(){
-            return m_p_set.get_unmarked();
-        }
-
-        public GuildCandidate clone() {
-            GuildCandidate cloned = new GuildCandidate(get_p_set(),members);
-            cloned.fault_set = new HashSet<>(fault_set);
-            return cloned;
-        }
-
-
 
     }
-    private Set<ProcSet> get_all_guilds(){
-        Queue<GuildCandidate> guild_candidates = new LinkedList<>();
-        HashSet<GuildCandidate> guilds = new HashSet<>();
+    public AsymmetricTrustSystem permute(){
+        return permute(random_permutation(members));
+    }
+
+    public AsymmetricTrustSystem permute(HashMap<Proc,Proc> permutation){
+        HashMap<Proc,TrustSystem> temp = new HashMap<>();
+        for(Map.Entry<Proc,TrustSystem> e : asym_trust_system.entrySet()){
+            temp.put(permutation.get(e.getKey()),e.getValue().permute(permutation));
+        }
+        return new AsymmetricTrustSystem(temp);
+    }
+
+    private HashSet<ProcSet> get_guilds(Selector s){
+        HashSet<GuildCandidate> seen = new HashSet<>();
+        HashSet<ProcSet> guilds = new HashSet<>();
         GuildCandidate cur;
         for(Proc p : members) {
             for (ProcSet p_set : asym_trust_system.get(p).get_quorums()) {
-                cur = new GuildCandidate(p_set,members);
+                cur = new GuildCandidate(p_set);
                 cur.add_p(p);
                 cur.mark_p(p);
-                guild_candidates.add(cur);
+                if(!seen.contains(cur)) {
+                    seen.add(cur);
+                    s.add(cur);
+                }
             }
         }
 
         Proc cur_p;
         GuildCandidate clone;
-        while(!guild_candidates.isEmpty()){
-            cur = guild_candidates.remove();
+        boolean cont = false;
+        while(!s.isEmpty()){
+            //check if the guildcandidate contains an already existing guild
+            cur = s.next();
+            for(ProcSet guild : guilds){
+                cont = false;
+                if (cur.get_p_set().p_set.containsAll(guild.get_p_set())){
+                    cont = true;
+                    break;
+                }
+            }
+            if(cont)
+                continue;
+
             if(!cur.has_unmarked()){
-                guilds.add(cur);
+                drop_supersets(guilds,cur.get_p_set());
+                guilds.add(cur.get_p_set());
                 continue;
             }
             cur_p = cur.get_unmarked();
@@ -206,230 +245,124 @@ public class AsymmetricTrustSystem {
                 clone = cur.clone();
                 clone.add_p_set(p_set);
                 clone.mark_p(cur_p);
-                guild_candidates.add(clone);
+                if(!seen.contains(clone)) {
+                    seen.add(clone);
+                    s.add(clone);
+                }
             }
 
         }
-        return union_closure(guilds);
-
+        return guilds;
     }
 
-    private Set<ProcSet> union_closure(HashSet<GuildCandidate> guilds) {
-        Set<ProcSet> all_guilds = new HashSet<>();
-        //first filter the Guild candidates removing all guilds with the empty fault set handling them seperatly.
-        //further all guilds are removed that have a equal pset to another guild and a sub-fault set
-        HashSet<GuildCandidate> empty_guilds = new HashSet<>();
-        for (GuildCandidate g : guilds){
-            if(g.fault_set.isEmpty()){
-                empty_guilds.add(g);
+    private void drop_supersets(HashSet<ProcSet> guilds, ProcSet p_set) {
+        HashSet<ProcSet> to_remove = new HashSet<>();
+        for(ProcSet p_s : guilds){
+            if(p_s.get_p_set().containsAll(p_set.get_p_set())){
+                to_remove.add(p_s);
             }
-        }
-        guilds.removeAll(empty_guilds);
-        List<ProcSet> empty_guilds_p_sets = new ArrayList<>();
-        for(GuildCandidate g : empty_guilds){
-            empty_guilds_p_sets.add(g.get_p_set());
-        }
-        int i = 0;
-        int j;
-        HashSet<GuildCandidate> to_remove = new HashSet<>();
-        for(GuildCandidate g1 : guilds){
-            j = 0;
-            for(GuildCandidate g2 : guilds){
-                //check the condition for removal of g2
-                if(g1.get_p_set().equals(g2.get_p_set())&&g1.fault_set.containsAll(g2.fault_set)){
-                    //in the case that the fault sets are also equal we only want to remove one of them thus i<j
-                    if(!g1.fault_set.equals(g2.fault_set)||i<j){
-                        to_remove.add(g2);
-                    }
-                }
-            j++;
-            }
-        i++;
         }
         guilds.removeAll(to_remove);
-
-        //create a graph where each guild member is represented by a vertex and an edge between two vertices encodes
-        //that they share elements in theire fault sets
-        Graph<ProcSet, DefaultEdge> graph = buildGraph(guilds);
-        Iterator<Set<ProcSet>> cliques = findMaximalCliques(graph);
-
-        all_guilds.addAll(computeUnions(empty_guilds_p_sets));
-
-        Set<ProcSet> cl;
-
-        while (cliques.hasNext()) {
-            cl = cliques.next();
-            // Do something with the 'cl' set
-            all_guilds.addAll(computeUnions(new ArrayList<>(cl)));
-        }
-        remove_duplicates(all_guilds);
-        return all_guilds;
     }
 
-    private void remove_duplicates(Set<ProcSet> all_guilds) {
-        HashSet<ProcSet> to_remove = new HashSet<>();
-        int i = 0;
-        for(ProcSet p_set : all_guilds){
-            int j = 0;
-            for(ProcSet p_set2 : all_guilds){
-                if(p_set.equals(p_set2)&&i<j){
-                    to_remove.add(p_set);
-                }
-                j++;
-            }
-            i++;
-        }
-        all_guilds.remove(to_remove);
+    public ToleratedSystem get_tolerated_system(){
+        return get_tolerated_system(new GreedySelector());
+    }
+    public ToleratedSystem get_tolerated_system(Selector s){
+        return new ToleratedSystem(new FaultSystem(new HashSet<>()),new QuorumSystem(get_guilds(s)));
     }
 
-    // Function to compute all possible unions of a set of sets
-    public static Set<ProcSet> computeUnions(List<ProcSet> sets) {
-        Set<ProcSet> result = new HashSet<>();
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{");
+        boolean first = true;
+        for (Map.Entry<Proc, TrustSystem> entry : asym_trust_system.entrySet()) {
+            if (!first) sb.append(" ");
+            first = false;
+            sb.append(entry.getKey().toString()).append(entry.getValue().toString());
+        }
+        sb.append("}");
+        return sb.toString();
+    }
+    public static AsymmetricTrustSystem parse(String code) {
+        code = code.trim();
 
-        // Get the number of sets
-        int n = sets.size();
+        if (code.length() < 2 || code.charAt(0) != '{' || code.charAt(code.length() - 1) != '}') {
+            throw new IllegalArgumentException("Invalid format for AsymmetricTrustSystem");
+        }
+        code = code.substring(1, code.length() - 1);
+        // Extract `{Proc}` and `{TrustSystem}` pairs using flatten_brackets
+        ArrayList<String> entries = SerializerTools.flatten_outer_brackets(code);
 
-        // Iterate over all possible subsets of the list of sets
-        // Each subset represents a possible combination of sets to union
-        for (int i = 1; i < (1 << n); i++) {
-            HashSet<Proc> union = new HashSet<>();
+        HashMap<Proc, TrustSystem> asym_trust_system = new HashMap<>();
 
-            // For each subset, add the sets included in the subset to the union
-            for (int j = 0; j < n; j++) {
-                if ((i & (1 << j)) != 0) { // If the j-th set is included in the subset
-                    union.addAll(sets.get(j).get_p_set());
-                }
+        for (int i = 0; i < entries.size(); i += 2) {
+            if (i + 1 >= entries.size()) {
+                throw new IllegalArgumentException("Unmatched Proc and TrustSystem entries in: " + code);
             }
 
-            // Add the union of the current subset to the result set
-            result.add(new ProcSet(union));
+            // Extract and parse Proc
+            Proc proc = Proc.parse(entries.get(i));
+
+            // Extract and parse TrustSystem
+            TrustSystem trustSystem = TrustSystem.parse(entries.get(i + 1));
+
+            asym_trust_system.put(proc, trustSystem);
         }
 
-        return result;
+        return new AsymmetricTrustSystem(asym_trust_system);
     }
 
-
-    // Build the graph using JGraphT's SimpleGraph
-    public static Graph<ProcSet, DefaultEdge> buildGraph(Set<GuildCandidate> guilds) {
-        Graph<ProcSet, DefaultEdge> graph = new SimpleGraph<>(DefaultEdge.class);
-
-        // Add vertices (guilds)
-        for (GuildCandidate g : guilds) {
-            graph.addVertex(g.get_p_set());
+    public static AsymmetricTrustSystem symmetric_threshold_system(Collection<Proc> procs, int threshold){
+        HashMap<Proc,TrustSystem> map = new HashMap<>();
+        for(Proc p : procs) {
+            map.put(p,TrustSystem.threshold_system(procs,threshold));
         }
-
-        // Add edges between guilds that share elements in their fault sets
-        for (GuildCandidate g1 : guilds) {
-            for (GuildCandidate g2 : guilds) {
-                if (!g1.equals(g2) && !Collections.disjoint(g1.fault_set, g2.fault_set)) {
-                    graph.addEdge(g1.get_p_set(), g2.get_p_set());
-                }
-            }
+        return new AsymmetricTrustSystem(map);
+    }
+    public static AsymmetricTrustSystem symmetric_threshold_system(Collection<Proc> procs){
+        HashMap<Proc,TrustSystem> map = new HashMap<>();
+        for(Proc p : procs) {
+            map.put(p,TrustSystem.threshold_system(procs));
         }
-
-        return graph;
+        return new AsymmetricTrustSystem(map);
     }
 
-    // Find maximal cliques using JGraphT's Bron-KerboschCliqueFinder
-    public static Iterator<Set<ProcSet>> findMaximalCliques(Graph<ProcSet, DefaultEdge> graph) {
-        BronKerboschCliqueFinder<ProcSet,DefaultEdge> cliqueFinder = new BronKerboschCliqueFinder<>(graph);
-        return cliqueFinder.iterator();
-    }
-
-    private Set<ProcSet> get_guilds(int index){
-        return get_guilds(get_faulties(index));
-    }
-    private Set<ProcSet> get_guilds(ArrayList<Proc> faulties){
-        ArrayList<Proc> wises = get_wise_procs(faulties);
-        HashMap<Proc,ArrayList<ProcSet>> wise_qs = get_wise_quorums(wises);
-        Queue<MarkedProcSet> guild_candidates = new LinkedList<>();
-        ArrayList<ProcSet> guilds = new ArrayList<>();
-        MarkedProcSet cur;
-        for(Proc p : wises) {
-            for (ProcSet p_set : wise_qs.get(p)) {
-                cur = new MarkedProcSet(p_set);
-                cur.add_p(p);
-                cur.mark_p(p);
-                guild_candidates.add(cur);
-            }
-        }
-
-        Proc cur_p;
-        MarkedProcSet clone;
-        while(!guild_candidates.isEmpty()){
-            cur = guild_candidates.remove();
-            if(!cur.has_unmarked()){
-                guilds.add(cur.get_p_set());
-                continue;
-            }
-            cur_p = cur.get_unmarked();
-            for(ProcSet p_set : wise_qs.get(cur_p)){
-                clone = cur.clone();
-                clone.add_p_set(p_set);
-                clone.mark_p(cur_p);
-                guild_candidates.add(clone);
-            }
-
-        }
-        Set<ProcSet> all_guilds = computeUnions(guilds);
-        remove_duplicates(all_guilds);
-        return all_guilds;
-    }
-
-
-    private HashMap<Proc,ArrayList<ProcSet>> get_wise_quorums(ArrayList<Proc> wises){
-        HashSet<Proc> wises_s = new HashSet<>(wises);
-        HashMap<Proc,ArrayList<ProcSet>> ret = new HashMap<>();
-        boolean all_wise;
-        for(Proc p : wises){
-            ret.put(p,new ArrayList<>());
-            for(ProcSet p_set : asym_trust_system.get(p).get_quorums()){
-                all_wise = true;
-                for(Proc q : p_set){
-                    if(!wises_s.contains(q)){
-                        all_wise = false;
-                        break;
-                    }
-                }
-                if(all_wise){
-                    ret.get(p).add(p_set);
-                }
-            }
+    public static HashMap<Proc,Proc> random_permutation(Collection<Proc> procs){
+        HashMap<Proc,Proc> ret = new HashMap<>();
+        ArrayList<Proc> l1 = new ArrayList<>(procs);
+        ArrayList<Proc> l2 = new ArrayList<>(l1);
+        Collections.shuffle(l2);;
+        for(int i = 0; i< l1.size();i++){
+            ret.put(l1.get(i),l2.get(i));
         }
         return ret;
     }
 
+    public static void main(String[] args){
+        Proc p1 = new Proc(0, "127.0.0.1", 5000);
+        Proc p2 = new Proc(1, "127.0.0.1", 5001);
+        Proc p3 = new Proc(2, "127.0.0.1", 5002);
+        Proc p4 = new Proc(3, "127.0.0.1", 5003);
+        Proc p5 = new Proc(4, "127.0.0.1", 5004);
 
-    private ArrayList<Proc> get_wise_procs(ArrayList<Proc> faulties) {
-        TrustSystem t_s;
-        HashSet<Proc> f_set = new HashSet<>(faulties);
-        ArrayList<Proc> wises = new ArrayList<>();
-        for(Proc p : members){
-            if(f_set.contains(p)){
-                continue;
-            }
-            t_s = asym_trust_system.get(p);
-            for(ProcSet p_set : t_s.get_fault_assumptions()){
-                if(p_set.get_p_set().containsAll(f_set)){
-                    wises.add(p);
-                    break;
-                }
-            }
-        }
-        return wises;
+        ArrayList<Proc> peers = new ArrayList<>();
+        peers.add(p1);
+        peers.add(p2);
+        peers.add(p3);
+        peers.add(p4);
+        //peers.add(p5);
+        AsymmetricTrustSystem a_t_s = symmetric_threshold_system(peers);
+        ToleratedSystem tol = a_t_s.get_tolerated_system();
+        AsymmetricTrustSystem clone = AsymmetricTrustSystem.parse(a_t_s.toString());
+        System.out.println(clone);
     }
 
-    private ArrayList<Proc> get_faulties(int index) {
-        int size = members.size();
-        String binaryString = String.format("%" + size + "s", Integer.toBinaryString(index)).replace(' ', '0');
-        ArrayList<Proc> faultyProces = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            if (binaryString.charAt(i) == '1') {
-                faultyProces.add(members.get(i)); // Assuming members contains Proces
-            }
-        }
-
-        return faultyProces;
-
+    public String name(){
+        return "";
     }
+
+
+
 }

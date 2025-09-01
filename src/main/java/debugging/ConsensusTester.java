@@ -1,12 +1,8 @@
 package debugging;
 
-import abvbroadcast.*;
-import binaryconsensus.ACDecide;
-import binaryconsensus.ACProposeRequest;
-import binaryconsensus.BinaryConsensusProtocol;
-import commoncoin.UnsafeCommonCoinProtocol;
-import communication.CommunicationProtocol;
-import communication.CommunicationReply;
+import randomizedconsensus.ACDecide;
+import randomizedconsensus.ACProposeRequest;
+import randomizedconsensus.BinaryConsensusProtocol;
 import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
@@ -78,27 +74,15 @@ public class ConsensusTester extends GenericProtocol {
 
 
         ConsensusTester tester = new ConsensusTester();
-        UnsafeCommonCoinProtocol coin = new UnsafeCommonCoinProtocol();
-        MultiplexAbvBroadcast abvB = new MultiplexAbvBroadcast();
-        CommunicationProtocol comm = new CommunicationProtocol();
         BinaryConsensusProtocol con = new BinaryConsensusProtocol();
 
         //Registers the protocol in babel
         babel.registerProtocol(tester);
-        babel.registerProtocol(abvB);
-        babel.registerProtocol(comm);
-        babel.registerProtocol(coin);
         babel.registerProtocol(con);
-        props.setProperty("seed","115");
 
         //Initializes the protocol
         con.init(props);
-        comm.init(props);
-        props.setProperty("output_proto","104");
-        abvB.init(props);
         tester.init(props);
-        coin.init(props);
-
 
 
         //Starts babel

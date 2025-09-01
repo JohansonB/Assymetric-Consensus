@@ -30,6 +30,20 @@ public class SerializerTools {
         }
         return ret;
     }
+    public static HashMap<String,String> proc_map_to_string_map(HashMap<Proc,String> map){
+        HashMap<String,String> temp1 = new HashMap<>();
+        for(Map.Entry<Proc,String> entry : map.entrySet()){
+            temp1.put(entry.getKey().toString(),entry.getValue());
+        }
+        return temp1;
+    }
+    public static HashMap<Proc,String> string_map_to_proc_map(HashMap<String,String> map){
+        HashMap<Proc,String> temp1 = new HashMap<>();
+        for(Map.Entry<String,String> entry : map.entrySet()){
+            temp1.put(Proc.parse(entry.getKey()),entry.getValue());
+        }
+        return temp1;
+    }
     public static ArrayList<String> decode_collection(String code){
         code = code.substring(1, code.length() - 1);
         return flatten_outer_brackets(code);
@@ -73,6 +87,47 @@ public class SerializerTools {
             String value = decodeUTF8(in);
             map.put(key, value);
         }
+        return map;
+    }
+
+    public static String encode_hashmap(HashMap<String, String> map) {
+        if(map.isEmpty()){
+            return "0";
+        }
+        // Create two lists, one for keys and one for values
+        List<String> keys = new ArrayList<>(map.keySet());
+        List<String> values = new ArrayList<>(map.values());
+
+        // Sort the keys to ensure the order
+        Collections.sort(keys);
+
+        // Create a new list with alternating key-value pairs
+        List<String> alternatingList = new ArrayList<>();
+        for (String key : keys) {
+            alternatingList.add(key);          // Add the key
+            alternatingList.add(map.get(key)); // Add the corresponding value
+        }
+
+        // Use the ListEncoderDecoder to encode the alternating list of keys and values
+        return ListEncoderDecoder.encode(alternatingList);
+    }
+
+    // Decoder for HashMap using ListDecoder
+    public static HashMap<String, String> decode_hashmap(String encoded) {
+        if(encoded.equals("0")){
+            return new HashMap<>();
+        }
+        // Decode the string using the ListEncoderDecoder
+        List<String> decodedList = ListEncoderDecoder.decode(encoded);
+
+        // Convert the alternating list of keys and values into a HashMap
+        HashMap<String, String> map = new HashMap<>();
+        for (int i = 0; i < decodedList.size(); i += 2) {
+            String key = decodedList.get(i);        // Even index: key
+            String value = decodedList.get(i + 1);  // Odd index: value
+            map.put(key, value);
+        }
+
         return map;
     }
 

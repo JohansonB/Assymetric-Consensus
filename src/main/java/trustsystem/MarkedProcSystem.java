@@ -1,8 +1,6 @@
 package trustsystem;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
+import java.util.*;
 
 public class MarkedProcSystem extends ProcSystem{
     boolean p_set_found = false;
@@ -10,6 +8,9 @@ public class MarkedProcSystem extends ProcSystem{
     HashMap<Proc, ArrayList<Integer>> p_set_membership = new HashMap<>();
     HashMap<Integer,Integer> counts = new HashMap<>();
     HashMap<Integer,Integer> sizes = new HashMap<>();
+    ProcSet found_quorum = null;
+    MarkedProcSystem(){
+    }
     MarkedProcSystem(Collection<ProcSet> p_sets) {
         super(p_sets);
         int count = 0;
@@ -28,8 +29,11 @@ public class MarkedProcSystem extends ProcSystem{
             count++;
         }
     }
-    void reset(){
+    public void reset(){
         p_set_found = false;
+        for(Proc p : seen.keySet()){
+            seen.put(p,false);
+        }
         for(int i = 0; i<counts.size();i++){
             counts.put(i,0);
         }
@@ -47,10 +51,20 @@ public class MarkedProcSystem extends ProcSystem{
         for(int index : p_set_membership.get(p)){
             temp = counts.get(index)+1;
             counts.put(index,temp);
-            if(temp>=sizes.get(index)){
+            if(temp>=sizes.get(index)&&!p_set_found){
                 p_set_found = true;
+                HashSet<Proc> set = new HashSet<>();
+                for(Map.Entry<Proc,Boolean> entry : seen.entrySet()){
+                    if(entry.getValue()){
+                        set.add(entry.getKey());
+                    }
+                }
+                found_quorum = new ProcSet(set);
             }
         }
         return p_set_found;
+    }
+    public ProcSet getQuorum(){
+        return found_quorum;
     }
 }

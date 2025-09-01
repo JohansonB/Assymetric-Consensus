@@ -1,4 +1,7 @@
 package communication;
+import communication.reply.CommunicationReply;
+import communication.reply.MessageACK;
+import communication.request.SendMessageRequest;
 import org.apache.logging.log4j.core.config.Configurator;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;

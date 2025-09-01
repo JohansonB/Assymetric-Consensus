@@ -1,8 +1,13 @@
 package communication;
 
+import communication.reply.CommunicationReply;
+import communication.reply.MessageACK;
+import communication.request.SendMessageRequest;
 import org.apache.logging.log4j.core.config.Configurator;
+import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
+import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
 import pt.unl.fct.di.novasys.network.data.Host;
 import trustsystem.Proc;
 import utils.SerializerTools;
@@ -31,7 +36,7 @@ public class FifoChannel extends GenericProtocol {
 
     @Override
     public void init(Properties properties) throws HandlerRegistrationException, IOException {
-        Configurator.setLevel("CommunicationProtocol", org.apache.logging.log4j.Level.DEBUG);
+
 
 
         self = Proc.parse(properties.getProperty("self"));
@@ -53,6 +58,14 @@ public class FifoChannel extends GenericProtocol {
             peer_h.put(p,h);
             h_p_map.put(h,p);
         }
+        try {
+            properties.setProperty("dest_proto",Short.toString(PROTO_ID));
+            AuthenticatedChannel a_c = new AuthenticatedChannel();
+            Babel.getInstance().registerProtocol(a_c);
+            a_c.init(properties);
+        } catch (ProtocolAlreadyExistsException e) {
+            e.printStackTrace();
+        }
 
     }
 
@@ -69,7 +82,7 @@ public class FifoChannel extends GenericProtocol {
     }
 
     private void uponMessageRequest(SendMessageRequest messageRequest, short sourceProtocol){
-        sendRequest(messageRequest,PendingChannel.PROTO_ID);
+        sendRequest(messageRequest,AuthenticatedChannel.PROTO_ID);
     }
 
     private void uponMessageReply(CommunicationReply reply, short sourceProtocol){

@@ -1,5 +1,9 @@
 package communication;
 
+import communication.reply.CommunicationReply;
+import communication.reply.ConnectionsClosedReply;
+import communication.request.CloseConnectionsRequest;
+import communication.request.SendMessageRequest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
@@ -19,7 +23,7 @@ import java.util.*;
 
 public class PendingChannel extends GenericProtocol {
     private static final Logger logger = LogManager.getLogger(PendingChannel.class);
-    private static final int DEFAULT_QUEUE_MILLIS = 100;
+    private static final int DEFAULT_QUEUE_MILLIS = 70;
     private static final String PROTO_NAME = "pendingchannel";
     public static final short PROTO_ID = 105;
 
@@ -28,6 +32,8 @@ public class PendingChannel extends GenericProtocol {
     Host self_h;
     int queue_millis;
     boolean queue_timer_running;
+    boolean shutting_down = false;
+    short close_source = 0;
 
     ArrayList<Proc> peers = new ArrayList<>();
     HashMap<Proc,Host> peer_h = new HashMap<>();
@@ -77,9 +83,13 @@ public class PendingChannel extends GenericProtocol {
         registerChannelEventHandler(channelId, InConnectionUp.EVENT_ID, this::uponInConnectionUp);
         registerChannelEventHandler(channelId, InConnectionDown.EVENT_ID, this::uponInConnectionDown);
 
+
+
         registerMessageHandler(this.channelId,CommunicationProtocolMessage.MSG_ID,this::uponCommunicationProtocolMessage,this::uponMessageFail);
 
         registerRequestHandler(SendMessageRequest.REQUEST_ID,this::uponMessageRequest);
+
+        registerRequestHandler(CloseConnectionsRequest.REQUEST_ID,this::uponCloseConnections);
 
         registerMessageSerializer(channelId, CommunicationProtocolMessage.MSG_ID, new CommunicationProtocolMessageSerializer());
 
@@ -99,6 +109,17 @@ public class PendingChannel extends GenericProtocol {
             }
         }
 
+    }
+
+    public void uponCloseConnections(CloseConnectionsRequest req, short source) {
+        shutting_down = true;
+        close_source = source;
+        // close every connection you opened
+        for (Host h : peer_h.values()) {
+            closeConnection(h, channelId);
+        }
+        pending = new HashSet<>();
+        sendReply(new ConnectionsClosedReply(), source);
     }
 
     private void uponNextPendingTimer(PendingTimer timer, long timerId) {
@@ -141,6 +162,8 @@ public class PendingChannel extends GenericProtocol {
 
     private void uponCommunicationProtocolMessage(CommunicationProtocolMessage msg, Host from, short source_proto, int channelId){
         CommunicationReply reply = new CommunicationReply(msg.getMessage(),msg.getPayload(),h_p_map.get(from),msg.getDestination_proto());
+        //System.out.println("received message PC"+reply.getMsg());
+
         //check if the message is rerouted to another communication layer
         short dest_prot = dest_proto!=null ? dest_proto : reply.getDestination_proto();
         sendReply(reply,dest_prot);
@@ -161,11 +184,13 @@ public class PendingChannel extends GenericProtocol {
     private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
         Host peer = event.getNode();
         connected.remove(peer);
-        pending.add(peer);
-        openConnection(peer);
-        if(!queue_timer_running){
-            queue_timer_running = true;
-            setupPeriodicTimer(new PendingTimer(),queue_millis,queue_millis);
+        if(!shutting_down) {
+            pending.add(peer);
+            openConnection(peer);
+            if (!queue_timer_running) {
+                queue_timer_running = true;
+                setupPeriodicTimer(new PendingTimer(), queue_millis, queue_millis);
+            }
         }
         logger.debug("Connection to {} is down cause {}", peer, event.getCause());
     }
@@ -173,12 +198,14 @@ public class PendingChannel extends GenericProtocol {
     private void uponOutConnectionFailed(OutConnectionFailed<ProtoMessage> event, int channelId) {
         logger.debug("Connection to {} failed cause: {}", event.getNode(), event.getCause());
         Host peer = event.getNode();
-        connected.remove(peer);
-        pending.add(peer);
-        openConnection(peer);
-        if(!queue_timer_running){
-            queue_timer_running = true;
-            setupPeriodicTimer(new PendingTimer(),queue_millis,queue_millis);
+        if(!shutting_down) {
+            connected.remove(peer);
+            pending.add(peer);
+            openConnection(peer);
+            if (!queue_timer_running) {
+                queue_timer_running = true;
+                setupPeriodicTimer(new PendingTimer(), queue_millis, queue_millis);
+            }
         }
     }
 

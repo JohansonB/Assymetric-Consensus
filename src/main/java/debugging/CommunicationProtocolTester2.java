@@ -1,9 +1,9 @@
 package debugging;
 
 import communication.CommunicationProtocol;
-import communication.CommunicationReply;
-import communication.MessageACK;
-import communication.SendMessageRequest;
+import communication.reply.CommunicationReply;
+import communication.reply.MessageACK;
+import communication.request.SendMessageRequest;
 import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
